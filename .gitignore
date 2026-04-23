@@ -16,3 +16,4 @@ __pycache__/
 output/
 results/venv/
 venv/
+.streamlit/secrets.toml
