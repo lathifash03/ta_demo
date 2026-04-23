@@ -1,0 +1,18 @@
+# API KEY
+.env
+*.env
+
+# python
+__pycache__/
+*.pyc
+
+# jupyter
+.ipynb_checkpoints/
+
+# mac
+.DS_Store
+
+# output files (optional)
+output/
+results/venv/
+venv/
