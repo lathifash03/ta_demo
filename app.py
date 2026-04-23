@@ -13,6 +13,13 @@ from dotenv import load_dotenv
 # Load env variables
 load_dotenv()
 
+def get_secret(key: str) -> str:
+    """Baca dari st.secrets (Streamlit Cloud) atau .env (lokal)."""
+    try:
+        return st.secrets[key]
+    except Exception:
+        return os.getenv(key, "")
+
 # Import pipeline modules
 from pipeline.preprocessor import run_preprocessing
 from pipeline.llm_converter import run_all_models
@@ -302,19 +309,19 @@ with st.sidebar:
 
     groq_key = st.text_input(
         "Groq API Key",
-        value=os.getenv("GROQ_API_KEY", ""),
+        get_secret("GROQ_API_KEY"),
         type="password",
         help="Dapatkan gratis di console.groq.com"
     )
     openai_key = st.text_input(
         "OpenAI API Key",
-        value=os.getenv("OPENAI_API_KEY", ""),
+        value=get_secret("OPENAI_API_KEY"),
         type="password",
         help="platform.openai.com/api-keys"
     )
     anthropic_key = st.text_input(
         "Anthropic API Key",
-        value=os.getenv("ANTHROPIC_API_KEY", ""),
+        value=get_secret("ANTHROPIC_API_KEY"),
         type="password",
         help="console.anthropic.com"
     )
