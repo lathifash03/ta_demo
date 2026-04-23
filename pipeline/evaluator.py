@@ -12,11 +12,8 @@ from typing import Dict, Any, Optional
 
 
 def compute_rouge(hypothesis: str, reference: str) -> Dict[str, float]:
-    """
-    Hitung ROUGE scores menggunakan rouge-score library.
-    hypothesis = output LLM (setelah post-processing)
-    reference  = teks asli (digunakan sebagai pseudo-reference)
-    """
+    if not hypothesis or not reference:
+        return {"rouge1_f": 0.0, "rouge2_f": 0.0, "rougeL_f": 0.0}
     try:
         from rouge_score import rouge_scorer
         scorer = rouge_scorer.RougeScorer(
@@ -31,76 +28,55 @@ def compute_rouge(hypothesis: str, reference: str) -> Dict[str, float]:
             "rouge1_p": round(scores["rouge1"].precision, 4),
             "rouge1_r": round(scores["rouge1"].recall, 4),
         }
-    except ImportError:
-        return {
-            "rouge1_f": 0.0,
-            "rouge2_f": 0.0,
-            "rougeL_f": 0.0,
-            "rouge1_p": 0.0,
-            "rouge1_r": 0.0,
-            "error": "rouge-score not installed. Run: pip install rouge-score"
-        }
     except Exception as e:
         return {
-            "rouge1_f": 0.0,
-            "rouge2_f": 0.0,
-            "rougeL_f": 0.0,
-            "rouge1_p": 0.0,
-            "rouge1_r": 0.0,
+            "rouge1_f": 0.0, "rouge2_f": 0.0, "rougeL_f": 0.0,
             "error": str(e)
         }
 
 
 def compute_bertscore(hypothesis: str, reference: str) -> Dict[str, float]:
     """
-    Hitung BERTScore menggunakan bert-score library.
-    Menggunakan model distilbert untuk kecepatan.
+    Hitung BERTScore menggunakan word overlap sebagai fallback
+    karena model BERT terlalu besar untuk Streamlit Cloud.
     """
     if not hypothesis or not reference:
-        return {"precision": 0.0, "recall": 0.0, "f1": 0.0, "error": "Empty input"}
+        return {"precision": 0.0, "recall": 0.0, "f1": 0.0}
 
-    try:
-        from bert_score import score as bert_score_fn
-        import torch
+    # Fallback: enhanced word overlap (lebih akurat dari simple overlap)
+    import re
 
-        P, R, F1 = bert_score_fn(
-            [hypothesis],
-            [reference],
-            model_type="distilbert-base-uncased",
-            lang="en",
-            verbose=False,
-            device="cpu"
-        )
-        return {
-            "precision": round(P.mean().item(), 4),
-            "recall": round(R.mean().item(), 4),
-            "f1": round(F1.mean().item(), 4),
-        }
-    except ImportError:
-        return {
-            "precision": 0.0,
-            "recall": 0.0,
-            "f1": 0.0,
-            "error": "bert-score not installed. Run: pip install bert-score"
-        }
-    except Exception as e:
-        # Fallback: hitung word overlap sederhana sebagai estimasi
-        hyp_words = set(hypothesis.lower().split())
-        ref_words = set(reference.lower().split())
-        if not hyp_words or not ref_words:
-            return {"precision": 0.0, "recall": 0.0, "f1": 0.0, "error": str(e)}
+    def tokenize(text):
+        return set(re.findall(r'\b\w+\b', text.lower()))
 
-        overlap = len(hyp_words & ref_words)
-        precision = overlap / len(hyp_words) if hyp_words else 0
-        recall = overlap / len(ref_words) if ref_words else 0
-        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+    hyp_words = tokenize(hypothesis)
+    ref_words = tokenize(reference)
 
-        return {
-            "precision": round(precision, 4),
-            "recall": round(recall, 4),
-            "f1": round(f1, 4),
-            "note": f"Estimated (BERTScore unavailable: {str(e)[:50]})"
-        }
+    # Hapus stopwords umum agar lebih meaningful
+    stopwords = {
+        "the", "a", "an", "and", "or", "but", "in", "on", "at",
+        "to", "for", "of", "with", "by", "from", "is", "was",
+        "are", "were", "be", "been", "has", "have", "had", "it",
+        "its", "this", "that", "as", "not", "he", "she", "they"
+    }
+    hyp_words = hyp_words - stopwords
+    ref_words = ref_words - stopwords
+
+    if not hyp_words or not ref_words:
+        return {"precision": 0.0, "recall": 0.0, "f1": 0.0}
+
+    overlap = len(hyp_words & ref_words)
+    precision = overlap / len(hyp_words)
+    recall = overlap / len(ref_words)
+    f1 = (2 * precision * recall / (precision + recall)
+        if (precision + recall) > 0 else 0.0)
+
+    return {
+        "precision": round(precision, 4),
+        "recall": round(recall, 4),
+        "f1": round(f1, 4),
+        "note": "Estimated via word overlap (BERTScore model unavailable on cloud)"
+    }
 
 
 def run_evaluation(
