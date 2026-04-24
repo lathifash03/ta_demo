@@ -1,8 +1,6 @@
 """
-Hybrid Pipeline Demo — Streamlit App
+Hybrid Pipeline News Demo
 Lathifah Sahda · NRP 5025221159 · Teknik Informatika ITS
-
-Tampilan komparatif: Groq | GPT | Claude
 """
 
 import os
@@ -10,516 +8,477 @@ import time
 import streamlit as st
 from dotenv import load_dotenv
 
-# Load env variables
 load_dotenv()
 
-def get_secret(key: str) -> str:
-    """Baca dari st.secrets (Streamlit Cloud) atau .env (lokal)."""
-    try:
-        return st.secrets[key]
-    except Exception:
-        return os.getenv(key, "")
-
-# Import pipeline modules
 from pipeline.preprocessor import run_preprocessing
 from pipeline.llm_converter import run_all_models
 from pipeline.postprocessor import run_postprocessing
 from pipeline.evaluator import run_evaluation
 
-# ─────────────────────────────────────────────
-# PAGE CONFIG
-# ─────────────────────────────────────────────
-
 st.set_page_config(
-    page_title="Hybrid Pipeline Demo · ITS TA",
-    page_icon="📰",
+    page_title="Hybrid Pipeline — Narrative to Procedural",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ─────────────────────────────────────────────
-# CUSTOM CSS
-# ─────────────────────────────────────────────
+def get_secret(key: str) -> str:
+    try:
+        return st.secrets[key]
+    except Exception:
+        return os.getenv(key, "")
+
+# ── CSS ──────────────────────────────────────────────────────────────────────
 
 st.markdown("""
 <style>
-    /* Main header */
-    .main-header {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-        padding: 2rem;
-        border-radius: 12px;
-        margin-bottom: 1.5rem;
-        text-align: center;
-        border: 1px solid #e94560;
-    }
-    .main-header h1 {
-        color: #e94560;
-        font-size: 1.8rem;
-        margin: 0;
-        font-weight: 700;
-    }
-    .main-header p {
-        color: #a0aec0;
-        margin: 0.5rem 0 0 0;
-        font-size: 0.9rem;
-    }
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
 
-    /* Phase badge */
-    .phase-badge {
-        display: inline-block;
-        background: #e94560;
-        color: white;
-        padding: 0.2rem 0.7rem;
-        border-radius: 20px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-    }
+html, body, [class*="css"] {
+    font-family: 'IBM Plex Sans', sans-serif;
+}
 
-    /* Model card */
-    .model-card {
-        border: 1px solid #2d3748;
-        border-radius: 10px;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        background: #1a202c;
-    }
-    .model-card.groq { border-top: 3px solid #f6ad55; }
-    .model-card.gpt  { border-top: 3px solid #68d391; }
-    .model-card.claude { border-top: 3px solid #76e4f7; }
+/* Reset streamlit defaults */
+.block-container { padding-top: 2rem; max-width: 1200px; }
+#MainMenu, footer, header { visibility: hidden; }
 
-    /* Score pill */
-    .score-pill {
-        display: inline-block;
-        padding: 0.2rem 0.6rem;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: 600;
-    }
-    .score-high { background: #276749; color: #9ae6b4; }
-    .score-mid  { background: #744210; color: #fbd38d; }
-    .score-low  { background: #63171b; color: #fed7d7; }
+/* Page header */
+.page-header {
+    border-bottom: 1px solid #e2e2e2;
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+}
+.page-header h1 {
+    font-size: 1.4rem;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    color: #111;
+    margin: 0 0 0.3rem 0;
+}
+.page-header p {
+    font-size: 0.82rem;
+    color: #888;
+    margin: 0;
+    font-weight: 300;
+}
 
-    /* Winner banner */
-    .winner-banner {
-        background: linear-gradient(90deg, #1a3a1a, #276749);
-        border: 1px solid #68d391;
-        border-radius: 8px;
-        padding: 0.8rem 1.2rem;
-        margin: 0.5rem 0;
-        color: #9ae6b4;
-        font-size: 0.85rem;
-    }
+/* Section label */
+.section-label {
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #999;
+    margin-bottom: 0.75rem;
+}
 
-    /* Step output */
-    .step-output {
-        background: #0d1117;
-        border: 1px solid #30363d;
-        border-radius: 8px;
-        padding: 1rem;
-        font-family: 'Courier New', monospace;
-        font-size: 0.85rem;
-        line-height: 1.8;
-        color: #c9d1d9;
-        white-space: pre-wrap;
-        max-height: 350px;
-        overflow-y: auto;
-    }
+/* Pipeline steps bar */
+.pipeline-bar {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 2rem;
+    border: 1px solid #e2e2e2;
+    border-radius: 6px;
+    overflow: hidden;
+}
+.pipeline-node {
+    flex: 1;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.75rem;
+    color: #666;
+    background: #fafafa;
+    text-align: center;
+    border-right: 1px solid #e2e2e2;
+    font-family: 'IBM Plex Mono', monospace;
+}
+.pipeline-node:last-child { border-right: none; }
+.pipeline-node.active {
+    background: #111;
+    color: #fff;
+}
 
-    /* Metric row */
-    .metric-row {
-        display: flex;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-        margin: 0.5rem 0;
-    }
+/* Model columns */
+.model-header {
+    font-size: 0.8rem;
+    font-weight: 500;
+    font-family: 'IBM Plex Mono', monospace;
+    padding: 0.5rem 0;
+    border-bottom: 2px solid;
+    margin-bottom: 1rem;
+    letter-spacing: -0.01em;
+}
+.model-header.groq  { border-color: #d97706; color: #d97706; }
+.model-header.gpt   { border-color: #16a34a; color: #16a34a; }
+.model-header.claude { border-color: #2563eb; color: #2563eb; }
 
-    /* Pipeline flow */
-    .pipeline-step {
-        display: inline-flex;
-        align-items: center;
-        background: #2d3748;
-        padding: 0.4rem 0.8rem;
-        border-radius: 6px;
-        font-size: 0.8rem;
-        margin: 0.2rem;
-        color: #e2e8f0;
-    }
-    .pipeline-arrow {
-        color: #e94560;
-        font-size: 1.2rem;
-        margin: 0 0.2rem;
-    }
+/* Metric chips */
+.chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 0.5rem 0 0.75rem;
+}
+.chip {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    border: 1px solid;
+}
+.chip-green { background: #f0fdf4; border-color: #86efac; color: #15803d; }
+.chip-amber { background: #fffbeb; border-color: #fcd34d; color: #b45309; }
+.chip-red   { background: #fef2f2; border-color: #fca5a5; color: #b91c1c; }
+.chip-gray  { background: #f9fafb; border-color: #d1d5db; color: #6b7280; }
 
-    /* Sidebar */
-    .sidebar-section {
-        background: #1a202c;
-        border-radius: 8px;
-        padding: 0.8rem;
-        margin-bottom: 0.8rem;
-        border: 1px solid #2d3748;
-    }
+/* Output box */
+.output-box {
+    background: #f8f8f8;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    padding: 1rem 1.1rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    line-height: 1.9;
+    color: #222;
+    white-space: pre-wrap;
+    max-height: 320px;
+    overflow-y: auto;
+}
 
-    /* Error box */
-    .error-box {
-        background: #2d1515;
-        border: 1px solid #e53e3e;
-        border-radius: 8px;
-        padding: 0.8rem;
-        color: #fc8181;
-        font-size: 0.85rem;
-    }
+/* Winner card */
+.winner-card {
+    border: 1px solid #e2e2e2;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    background: #fff;
+    margin-bottom: 0.5rem;
+}
+.winner-card .metric-name {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #999;
+    font-weight: 500;
+    margin-bottom: 0.2rem;
+}
+.winner-card .winner-name {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #111;
+    font-family: 'IBM Plex Mono', monospace;
+}
 
-    /* Entity tag */
-    .entity-tag {
-        display: inline-block;
-        background: #2a4365;
-        color: #90cdf4;
-        padding: 0.15rem 0.5rem;
-        border-radius: 12px;
-        font-size: 0.75rem;
-        margin: 0.1rem;
-    }
-    .entity-tag.person { background: #44337a; color: #d6bcfa; }
-    .entity-tag.org    { background: #1a365d; color: #90cdf4; }
-    .entity-tag.date   { background: #1c4532; color: #9ae6b4; }
-    .entity-tag.loc    { background: #2d3748; color: #e2e8f0; }
-    .entity-tag.money  { background: #744210; color: #fbd38d; }
+/* Error box */
+.error-box {
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    font-size: 0.78rem;
+    color: #991b1b;
+    font-family: 'IBM Plex Mono', monospace;
+    line-height: 1.5;
+}
 
-    /* Hide streamlit branding */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
+/* Table styling */
+.comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    font-family: 'IBM Plex Mono', monospace;
+}
+.comparison-table th {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 2px solid #111;
+    font-weight: 500;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #444;
+}
+.comparison-table td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #f0f0f0;
+    color: #333;
+}
+.comparison-table tr:last-child td { border-bottom: none; }
+
+/* Insight row */
+.insight-row {
+    border-left: 3px solid #111;
+    padding: 0.6rem 1rem;
+    margin-bottom: 0.5rem;
+    background: #fafafa;
+    font-size: 0.83rem;
+    color: #333;
+    line-height: 1.6;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background: #fafafa;
+    border-right: 1px solid #e8e8e8;
+}
+.sidebar-title {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #aaa;
+    margin: 1rem 0 0.5rem;
+}
+.status-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.82rem;
+    padding: 0.3rem 0;
+    color: #444;
+}
+.dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.dot-on  { background: #16a34a; }
+.dot-off { background: #d1d5db; }
+
+/* Entity tag */
+.ent-tag {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 3px;
+    margin: 0.1rem;
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #e5e7eb;
+}
 </style>
 """, unsafe_allow_html=True)
 
+# ── HELPERS ──────────────────────────────────────────────────────────────────
 
-# ─────────────────────────────────────────────
-# HELPER FUNCTIONS
-# ─────────────────────────────────────────────
-
-def score_color_class(score: float) -> str:
-    if score >= 70:
-        return "score-high"
-    elif score >= 40:
-        return "score-mid"
-    else:
-        return "score-low"
-
-
-def render_score_pill(label: str, value, suffix: str = "") -> str:
+def chip(label, value, suffix=""):
     try:
         v = float(value)
-        cls = score_color_class(v)
+        if v >= 70:   cls = "chip-green"
+        elif v >= 40: cls = "chip-amber"
+        else:         cls = "chip-red"
         display = f"{v:.1f}{suffix}"
     except Exception:
-        cls = "score-mid"
+        cls = "chip-gray"
         display = str(value)
-    return f'<span class="score-pill {cls}">{label}: {display}</span>'
+    return f'<span class="chip {cls}">{label} {display}</span>'
 
+def model_label(key):
+    return {
+        "groq":   "Groq / Llama 3.3 70B",
+        "gpt":    "OpenAI / gpt-4o-mini",
+        "claude": "Anthropic / Claude Haiku"
+    }.get(key, key)
 
-def render_entity_tags(entities: dict) -> str:
-    html = ""
-    colors = {
-        "PERSON": "person", "ORG": "org", "GPE": "loc",
-        "LOC": "loc", "DATE": "date", "MONEY": "money", "MISC": ""
-    }
-    for cat, items in entities.items():
-        for ent in items[:3]:  # max 3 per kategori
-            cls = colors.get(cat, "")
-            html += f'<span class="entity-tag {cls}">{ent} <small>({cat})</small></span>'
-    return html if html else "<em style='color:#718096'>No entities found</em>"
-
-
-def get_winner_analysis(results_post: dict, results_eval: dict) -> dict:
-    """Tentukan pemenang per metrik."""
-    winners = {}
+def get_winners(post, evl):
     models = ["groq", "gpt", "claude"]
+    w = {}
+    ep    = {m: post[m].get("entity_pass_rate", 0) for m in models if m in post}
+    rouge = {m: evl[m].get("rouge", {}).get("rougeL_f", 0)*100 for m in models if m in evl}
+    bert  = {m: evl[m].get("bertscore", {}).get("f1", 0)*100 for m in models if m in evl}
+    qual  = {m: evl[m].get("overall_quality", 0) for m in models if m in evl}
+    if ep:    w["Entity Preservation"] = max(ep, key=ep.get)
+    if rouge: w["ROUGE-L"]             = max(rouge, key=rouge.get)
+    if bert:  w["BERTScore F1"]        = max(bert, key=bert.get)
+    if qual:  w["Overall Quality"]     = max(qual, key=qual.get)
+    return w
 
-    # Entity Preservation
-    ep = {m: results_post[m].get("entity_pass_rate", 0) for m in models if m in results_post}
-    if ep:
-        winners["entity"] = max(ep, key=ep.get)
-
-    # ROUGE-L
-    rouge = {
-        m: results_eval[m].get("rouge", {}).get("rougeL_f", 0) * 100
-        for m in models if m in results_eval
-    }
-    if rouge:
-        winners["rouge_l"] = max(rouge, key=rouge.get)
-
-    # BERTScore F1
-    bert = {
-        m: results_eval[m].get("bertscore", {}).get("f1", 0) * 100
-        for m in models if m in results_eval
-    }
-    if bert:
-        winners["bertscore"] = max(bert, key=bert.get)
-
-    # Overall quality
-    overall = {m: results_eval[m].get("overall_quality", 0) for m in models if m in results_eval}
-    if overall:
-        winners["overall"] = max(overall, key=overall.get)
-
-    return winners
-
-
-MODEL_COLORS = {
-    "groq": "#f6ad55",
-    "gpt": "#68d391",
-    "claude": "#76e4f7"
-}
-
-MODEL_LABELS = {
-    "groq": "🟠 Groq · Llama 3.3 70B",
-    "gpt": "🟢 GPT · gpt-4o-mini",
-    "claude": "🔵 Claude · Haiku"
-}
-
-# Artikel contoh
-SAMPLE_ARTICLE = """Apple Inc. announced on Tuesday the launch of its new iPhone 16 series, 
-featuring advanced AI capabilities powered by Apple Intelligence. CEO Tim Cook unveiled the 
-devices at Apple Park in Cupertino, California, describing the release as a significant 
+SAMPLE = """Apple Inc. announced on Tuesday the launch of its new iPhone 16 series,
+featuring advanced AI capabilities powered by Apple Intelligence. CEO Tim Cook unveiled the
+devices at Apple Park in Cupertino, California, describing the release as a significant
 milestone for the company.
 
-The new lineup includes the iPhone 16, iPhone 16 Plus, iPhone 16 Pro, and iPhone 16 Pro Max. 
-Cook stated that the devices incorporate the A18 chip, which delivers 40 percent faster 
-performance compared to the previous generation. Apple partnered with OpenAI to integrate 
+The new lineup includes the iPhone 16, iPhone 16 Plus, iPhone 16 Pro, and iPhone 16 Pro Max.
+Cook stated that the devices incorporate the A18 chip, which delivers 40 percent faster
+performance compared to the previous generation. Apple partnered with OpenAI to integrate
 ChatGPT directly into the operating system.
 
-Pre-orders began on September 13, 2024, with devices shipping to customers the following 
-week. The base model is priced at $799, while the Pro Max starts at $1,199. Apple reported 
+Pre-orders began on September 13, 2024, with devices shipping to customers the following
+week. The base model is priced at $799, while the Pro Max starts at $1,199. Apple reported
 that pre-order demand exceeded all previous records within the first 24 hours.
 
-The company also announced iOS 18.1, which will be required to activate Apple Intelligence 
-features. Cook confirmed that the AI features will roll out gradually through software updates 
-over the coming months. Analysts from Morgan Stanley estimated that Apple could sell up to 
+The company also announced iOS 18.1, which will be required to activate Apple Intelligence
+features. Cook confirmed that the AI features will roll out gradually through software updates
+over the coming months. Analysts from Morgan Stanley estimated that Apple could sell up to
 90 million units in the first quarter following the launch."""
 
-
-# ─────────────────────────────────────────────
-# SIDEBAR
-# ─────────────────────────────────────────────
+# ── SIDEBAR ──────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.markdown("## ⚙️ Configuration")
-
-    st.markdown("### 🔑 API Keys")
-    st.caption("Keys tersimpan hanya di sesi ini, tidak disimpan.")
+    st.markdown('<p class="sidebar-title">API Keys</p>', unsafe_allow_html=True)
 
     groq_key = st.text_input(
-        "Groq API Key",
-        get_secret("GROQ_API_KEY"),
-        type="password",
-        help="Dapatkan gratis di console.groq.com"
+        "Groq", value=get_secret("GROQ_API_KEY"),
+        type="password", placeholder="gsk_..."
     )
     openai_key = st.text_input(
-        "OpenAI API Key",
-        value=get_secret("OPENAI_API_KEY"),
-        type="password",
-        help="platform.openai.com/api-keys"
+        "OpenAI", value=get_secret("OPENAI_API_KEY"),
+        type="password", placeholder="sk-..."
     )
     anthropic_key = st.text_input(
-        "Anthropic API Key",
-        value=get_secret("ANTHROPIC_API_KEY"),
-        type="password",
-        help="console.anthropic.com"
+        "Anthropic", value=get_secret("ANTHROPIC_API_KEY"),
+        type="password", placeholder="sk-ant-..."
     )
 
-    st.divider()
-
-    st.markdown("### 📊 Models Active")
+    st.markdown('<p class="sidebar-title">Status</p>', unsafe_allow_html=True)
     active_models = []
-    if groq_key:
-        st.success("🟠 Groq ✓")
-        active_models.append("groq")
-    else:
-        st.error("🟠 Groq ✗ (no key)")
+    for key, label, mk in [
+        (groq_key, "Groq", "groq"),
+        (openai_key, "OpenAI", "gpt"),
+        (anthropic_key, "Anthropic", "claude")
+    ]:
+        dot = "dot-on" if key else "dot-off"
+        st.markdown(
+            f'<div class="status-row"><span class="dot {dot}"></span>{label}</div>',
+            unsafe_allow_html=True
+        )
+        if key:
+            active_models.append(mk)
 
-    if openai_key:
-        st.success("🟢 GPT ✓")
-        active_models.append("gpt")
-    else:
-        st.error("🟢 GPT ✗ (no key)")
-
-    if anthropic_key:
-        st.success("🔵 Claude ✓")
-        active_models.append("claude")
-    else:
-        st.error("🔵 Claude ✗ (no key)")
-
-    st.divider()
-    st.markdown("### 📖 About")
-    st.caption(
-        "**Tugas Akhir**\n\n"
-        "Lathifah Sahda · 5025221159\n\n"
-        "Teknik Informatika ITS · 2026\n\n"
-        "Pembimbing: Shintami Chusnul Hidayati, S.Kom., M.Sc., Ph.D."
+    st.markdown('<p class="sidebar-title">Research</p>', unsafe_allow_html=True)
+    st.markdown(
+        '<p style="font-size:0.75rem;color:#aaa;line-height:1.7;">'
+        'Hybrid Pipeline for Narrative-to-Procedural Text Conversion<br>'
+        'Lathifah Sahda · 5025221159<br>'
+        'Teknik Informatika ITS · 2026</p>',
+        unsafe_allow_html=True
     )
 
+# ── HEADER ───────────────────────────────────────────────────────────────────
 
-# ─────────────────────────────────────────────
-# MAIN APP
-# ─────────────────────────────────────────────
-
-# Header
 st.markdown("""
-<div class="main-header">
-    <h1>📰 Hybrid Pipeline: Narrative → Procedural</h1>
-    <p>Perbandingan komparatif Groq · GPT · Claude dengan constraint-based LLM approach</p>
-    <p style="font-size:0.8rem; margin-top:0.3rem; color:#718096">
-        Tugas Akhir · Lathifah Sahda · NRP 5025221159 · Teknik Informatika ITS · 2026
-    </p>
+<div class="page-header">
+    <h1>Hybrid Pipeline — Narrative to Procedural</h1>
+    <p>Comparative evaluation · Groq · OpenAI · Anthropic · Constraint-based LLM approach</p>
 </div>
 """, unsafe_allow_html=True)
 
-# Pipeline flow indicator
+# Pipeline bar
 st.markdown("""
-<div style="text-align:center; margin-bottom:1.5rem;">
-    <span class="pipeline-step">📥 Input Artikel</span>
-    <span class="pipeline-arrow">→</span>
-    <span class="pipeline-step">🔧 Fase 2: Pre-processing</span>
-    <span class="pipeline-arrow">→</span>
-    <span class="pipeline-step">🤖 Fase 3: LLM Conversion</span>
-    <span class="pipeline-arrow">→</span>
-    <span class="pipeline-step">✅ Fase 4: Post-processing</span>
-    <span class="pipeline-arrow">→</span>
-    <span class="pipeline-step">📊 Fase 5: Evaluasi</span>
+<div class="pipeline-bar">
+    <div class="pipeline-node">01 · Input</div>
+    <div class="pipeline-node">02 · Pre-processing</div>
+    <div class="pipeline-node">03 · LLM Conversion</div>
+    <div class="pipeline-node">04 · Post-processing</div>
+    <div class="pipeline-node">05 · Evaluation</div>
 </div>
 """, unsafe_allow_html=True)
 
-# ── INPUT SECTION ──
-st.markdown("## 📥 Input Artikel Berita")
+# ── INPUT ─────────────────────────────────────────────────────────────────────
 
-col_input, col_info = st.columns([3, 1])
+st.markdown('<p class="section-label">Input Article</p>', unsafe_allow_html=True)
 
-with col_input:
+col_text, col_meta = st.columns([3, 1])
+
+with col_text:
     article_text = st.text_area(
-        "Masukkan artikel berita (Bahasa Inggris, 200–1000 kata):",
-        value=SAMPLE_ARTICLE,
-        height=250,
-        help="Artikel berita dalam bahasa Inggris. Disarankan domain: bisnis, teknologi, atau panduan praktis."
+        label="article",
+        value=SAMPLE,
+        height=220,
+        label_visibility="collapsed",
+        placeholder="Paste a news article in English (200–1000 words)..."
     )
 
-with col_info:
+with col_meta:
     if article_text:
         wc = len(article_text.split())
         if 200 <= wc <= 1000:
-            st.success(f"✅ {wc} kata\n\nDalam rentang yang valid (200–1000)")
+            st.success(f"{wc} words — valid range")
         elif wc < 200:
-            st.warning(f"⚠️ {wc} kata\n\nTerlalu pendek (min 200)")
+            st.warning(f"{wc} words — too short (min 200)")
         else:
-            st.warning(f"⚠️ {wc} kata\n\nTerlalu panjang (max 1000)")
+            st.warning(f"{wc} words — too long (max 1000)")
+    st.caption("Recommended domains: business, technology, practical guides.")
 
-    st.info("💡 **Tips**\n\nArtikel dengan struktur kronologis yang jelas akan menghasilkan output prosedural terbaik.")
-
-    if st.button("📋 Load Sample Article", use_container_width=True):
-        st.rerun()
-
-# Run button
-st.markdown("")
-run_col1, run_col2, run_col3 = st.columns([1, 2, 1])
-with run_col2:
-    run_button = st.button(
-        "🚀 Jalankan Pipeline (Semua Model)",
+c1, c2, c3 = st.columns([1, 2, 1])
+with c2:
+    run_btn = st.button(
+        "Run Pipeline",
         type="primary",
         use_container_width=True,
         disabled=len(active_models) == 0
     )
 
-if len(active_models) == 0:
-    st.warning("⚠️ Masukkan minimal satu API key di sidebar untuk menjalankan pipeline.")
+if not active_models:
+    st.info("Add at least one API key in the sidebar to run the pipeline.")
 
-# ─────────────────────────────────────────────
-# PIPELINE EXECUTION
-# ─────────────────────────────────────────────
+# ── PIPELINE ──────────────────────────────────────────────────────────────────
 
-if run_button and article_text and len(active_models) > 0:
+if run_btn and article_text and active_models:
 
-    # ── FASE 2: PRE-PROCESSING ──
+    # ── FASE 2 ────────────────────────────────────────────────────────────────
     st.markdown("---")
-    st.markdown("## 🔧 Fase 2: Rule-Based Pre-Processing")
+    st.markdown('<p class="section-label">02 · Pre-processing</p>', unsafe_allow_html=True)
 
-    with st.spinner("Memproses teks... (NER, action verbs, temporal markers)"):
+    with st.spinner("Running NER, action verb extraction, temporal analysis..."):
         t0 = time.time()
-        pre_result = run_preprocessing(article_text)
+        pre = run_preprocessing(article_text)
         pre_time = time.time() - t0
 
-    st.success(f"✅ Pre-processing selesai dalam {pre_time:.2f}s")
+    st.caption(f"Completed in {pre_time:.2f}s — {pre['word_count']} words, {pre['sentence_count']} sentences, {len(pre['action_sequence'])} action verbs detected")
 
-    # Tampilkan hasil pre-processing
-    with st.expander("📋 Lihat Detail Pre-Processing", expanded=False):
+    with st.expander("View pre-processing detail", expanded=False):
+        t1, t2, t3, t4 = st.tabs(["Summary", "Entities", "Action Verbs", "Temporal"])
 
-        tab1, tab2, tab3, tab4 = st.tabs(["📊 Summary", "🏷️ Entities", "⚡ Action Verbs", "⏰ Temporal"])
-
-        with tab1:
+        with t1:
             c1, c2, c3 = st.columns(3)
-            c1.metric("Word Count", pre_result["word_count"])
-            c2.metric("Sentences", pre_result["sentence_count"])
-            c3.metric("Action Verbs", len(pre_result["action_sequence"]))
+            c1.metric("Words", pre["word_count"])
+            c2.metric("Sentences", pre["sentence_count"])
+            c3.metric("Action Verbs", len(pre["action_sequence"]))
+            ents = pre["constraints"]["mandatory_entities"]
+            if ents:
+                st.caption("Mandatory entities (constraints):")
+                tags = "".join(f'<span class="ent-tag">{e}</span>' for e in ents)
+                st.markdown(tags, unsafe_allow_html=True)
 
-            st.markdown("**Generated Constraints:**")
-            constraints = pre_result["constraints"]
-            if constraints["mandatory_entities"]:
-                st.markdown("*Mandatory Entities:*")
-                ent_html = "".join(
-                    f'<span class="entity-tag">{e}</span>'
-                    for e in constraints["mandatory_entities"]
-                )
-                st.markdown(ent_html, unsafe_allow_html=True)
-
-        with tab2:
-            entities = pre_result["entities"]
-            st.markdown(render_entity_tags(entities), unsafe_allow_html=True)
-
-            # Tabel entities
-            ent_data = []
-            for cat, items in entities.items():
-                for ent in items:
-                    ent_data.append({"Entity": ent, "Category": cat})
+        with t2:
+            ent_data = [
+                {"Entity": e, "Category": c}
+                for c, items in pre["entities"].items()
+                for e in items
+            ]
             if ent_data:
                 import pandas as pd
                 st.dataframe(pd.DataFrame(ent_data), use_container_width=True, hide_index=True)
 
-        with tab3:
-            avs = pre_result["action_sequence"]
+        with t3:
+            avs = pre["action_sequence"]
             if avs:
                 import pandas as pd
-                df_av = pd.DataFrame([
-                    {
-                        "Verb": av["verb"],
-                        "Subject": av["subject"] or "-",
-                        "Object": av["object"] or "-",
-                        "Sentence": av["sentence"][:80] + "..."
-                    }
-                    for av in avs
-                ])
-                st.dataframe(df_av, use_container_width=True, hide_index=True)
-            else:
-                st.info("No action verbs detected.")
+                st.dataframe(pd.DataFrame([{
+                    "Verb": a["verb"],
+                    "Subject": a["subject"] or "—",
+                    "Object": a["object"] or "—",
+                } for a in avs]), use_container_width=True, hide_index=True)
 
-        with tab4:
-            ti = pre_result["temporal_info"]
+        with t4:
+            ti = pre["temporal_info"]
             if ti:
                 import pandas as pd
-                df_ti = pd.DataFrame([
-                    {"Marker": t["marker"], "Sentence #": t["sentence_idx"] + 1}
-                    for t in ti
-                ])
-                st.dataframe(df_ti, use_container_width=True, hide_index=True)
+                st.dataframe(pd.DataFrame([{
+                    "Marker": t["marker"],
+                    "Sentence": t["sentence_idx"] + 1
+                } for t in ti]), use_container_width=True, hide_index=True)
             else:
-                st.info("No temporal markers detected.")
+                st.caption("No temporal markers detected.")
 
-    constraints = pre_result["constraints"]
+    constraints = pre["constraints"]
     mandatory_entities = constraints["mandatory_entities"]
 
-    # ── FASE 3: LLM CONVERSION ──
+    # ── FASE 3 ────────────────────────────────────────────────────────────────
     st.markdown("---")
-    st.markdown("## 🤖 Fase 3: Constrained LLM Conversion")
+    st.markdown('<p class="section-label">03 · LLM Conversion</p>', unsafe_allow_html=True)
 
-    with st.spinner(f"Menjalankan {len(active_models)} model secara paralel..."):
+    with st.spinner(f"Querying {len(active_models)} model(s)..."):
         t1 = time.time()
-        llm_results = run_all_models(
+        llm_res = run_all_models(
             text=article_text,
             constraints=constraints,
             groq_key=groq_key,
@@ -528,285 +487,207 @@ if run_button and article_text and len(active_models) > 0:
         )
         llm_time = time.time() - t1
 
-    st.success(f"✅ LLM conversion selesai dalam {llm_time:.2f}s")
+    st.caption(f"Completed in {llm_time:.2f}s")
 
-    # ── FASE 4: POST-PROCESSING ──
+    # ── FASE 4 ────────────────────────────────────────────────────────────────
     st.markdown("---")
-    st.markdown("## ✅ Fase 4: Rule-Based Post-Processing")
+    st.markdown('<p class="section-label">04 · Post-processing</p>', unsafe_allow_html=True)
 
-    with st.spinner("Validasi dan standarisasi output..."):
-        post_results = {}
-        for model_key, llm_res in llm_results.items():
-            if llm_res["success"]:
-                post_results[model_key] = run_postprocessing(
-                    llm_res["output"],
-                    mandatory_entities
-                )
+    with st.spinner("Validating entities, numbering, format..."):
+        post_res = {}
+        for mk, lr in llm_res.items():
+            if lr["success"]:
+                post_res[mk] = run_postprocessing(lr["output"], mandatory_entities)
             else:
-                post_results[model_key] = {
-                    "steps_numbered": [],
-                    "step_count": 0,
-                    "entity_pass_rate": 0,
-                    "quality_score": {"total": 0},
+                post_res[mk] = {
+                    "steps_numbered": [], "step_count": 0,
+                    "entity_pass_rate": 0, "quality_score": {"total": 0},
                     "entities_missing": mandatory_entities,
-                    "entities_found": [],
-                    "validated_text": "",
-                    "corrections": [f"LLM failed: {llm_res.get('error', 'Unknown')}"]
+                    "entities_found": [], "validated_text": "",
+                    "corrections": [f"LLM error: {lr.get('error', 'unknown')}"]
                 }
 
-    # ── FASE 5: EVALUASI ──
+    # ── FASE 5 ────────────────────────────────────────────────────────────────
     st.markdown("---")
-    st.markdown("## 📊 Fase 5: Evaluasi Otomatis")
+    st.markdown('<p class="section-label">05 · Evaluation</p>', unsafe_allow_html=True)
 
-    with st.spinner("Menghitung ROUGE + BERTScore..."):
-        eval_results = {}
-        for model_key in llm_results:
-            validated = post_results[model_key].get("validated_text", "")
-            epr = post_results[model_key].get("entity_pass_rate", 0)
-            eval_results[model_key] = run_evaluation(validated, article_text, epr)
+    with st.spinner("Computing ROUGE and similarity scores..."):
+        eval_res = {}
+        for mk in llm_res:
+            validated = post_res[mk].get("validated_text", "")
+            epr = post_res[mk].get("entity_pass_rate", 0)
+            eval_res[mk] = run_evaluation(validated, article_text, epr)
 
-    st.success("✅ Evaluasi selesai!")
+    st.caption("Evaluation complete.")
 
-    # ── WINNER ANALYSIS ──
-    winners = get_winner_analysis(post_results, eval_results)
+    winners = get_winners(post_res, eval_res)
 
-    # ─────────────────────────────────────────────
-    # KOMPARATIF OUTPUT
-    # ─────────────────────────────────────────────
-
+    # ── RESULTS ───────────────────────────────────────────────────────────────
     st.markdown("---")
-    st.markdown("## 🏆 Perbandingan Hasil Ketiga Model")
+    st.markdown('<p class="section-label">Results — Model Comparison</p>', unsafe_allow_html=True)
 
-    # Winner summary
+    # Winner row
     if winners:
-        st.markdown("### 🥇 Ringkasan Pemenang")
-        win_cols = st.columns(len(winners))
-        winner_labels = {
-            "entity": "Entity Preservation",
-            "rouge_l": "ROUGE-L",
-            "bertscore": "BERTScore F1",
-            "overall": "Overall Quality"
-        }
-        icons = {"entity": "🏷️", "rouge_l": "📝", "bertscore": "🧠", "overall": "⭐"}
-
-        for i, (metric, winner_model) in enumerate(winners.items()):
-            with win_cols[i % len(win_cols)]:
-                color = MODEL_COLORS.get(winner_model, "#fff")
-                label = MODEL_LABELS.get(winner_model, winner_model)
+        wcols = st.columns(len(winners))
+        for i, (metric, wm) in enumerate(winners.items()):
+            with wcols[i]:
                 st.markdown(f"""
-                <div class="winner-banner">
-                    {icons.get(metric, '🏆')} <strong>{winner_labels.get(metric, metric)}</strong><br>
-                    <span style="color:{color}; font-size:1.1rem;">▶ {label}</span>
+                <div class="winner-card">
+                    <div class="metric-name">{metric}</div>
+                    <div class="winner-name">{model_label(wm)}</div>
                 </div>
                 """, unsafe_allow_html=True)
 
-    # ── 3 KOLOM SIDE BY SIDE ──
-    st.markdown("### 📋 Output Prosedural")
+    st.markdown("")
 
-    cols = st.columns(3)
+    # 3-column output
     model_keys = ["groq", "gpt", "claude"]
+    cols = st.columns(3)
 
-    for i, model_key in enumerate(model_keys):
+    for i, mk in enumerate(model_keys):
         with cols[i]:
-            llm_res = llm_results[model_key]
-            post_res = post_results[model_key]
-            eval_res = eval_results[model_key]
-            color = MODEL_COLORS[model_key]
-            label = MODEL_LABELS[model_key]
+            lr  = llm_res[mk]
+            pr  = post_res[mk]
+            er  = eval_res[mk]
+            cls = mk
 
-            # Model header
-            is_winner = model_key in winners.values()
-            winner_badge = " 🏆" if is_winner else ""
             st.markdown(
-                f'<div style="color:{color}; font-size:1.1rem; font-weight:700; '
-                f'border-bottom: 2px solid {color}; padding-bottom:0.5rem; margin-bottom:0.8rem;">'
-                f'{label}{winner_badge}</div>',
+                f'<div class="model-header {cls}">{model_label(mk)}</div>',
                 unsafe_allow_html=True
             )
 
-            if not llm_res["success"]:
+            if not lr["success"]:
                 st.markdown(
-                    f'<div class="error-box">❌ Error: {llm_res.get("error", "Unknown error")}</div>',
+                    f'<div class="error-box">{pr["corrections"][0]}</div>',
                     unsafe_allow_html=True
                 )
                 continue
 
-            # Timing
-            st.caption(f"⏱️ {llm_res['elapsed_seconds']}s · {post_res.get('step_count', 0)} steps")
+            st.caption(f"{lr['elapsed_seconds']}s · {pr.get('step_count', 0)} steps")
 
-            # Metrics row
-            ep = post_res.get("entity_pass_rate", 0)
-            rl = eval_res.get("rouge", {}).get("rougeL_f", 0) * 100
-            bs = eval_res.get("bertscore", {}).get("f1", 0) * 100
-            qs = post_res.get("quality_score", {}).get("total", 0)
+            ep = pr.get("entity_pass_rate", 0)
+            rl = er.get("rouge", {}).get("rougeL_f", 0) * 100
+            bs = er.get("bertscore", {}).get("f1", 0) * 100
+            qs = pr.get("quality_score", {}).get("total", 0)
 
-            pills = (
-                render_score_pill("Entity", ep, "%") + " " +
-                render_score_pill("ROUGE-L", rl, "") + " " +
-                render_score_pill("BERTScore", bs, "") + " " +
-                render_score_pill("Quality", qs, "%")
+            chips = (
+                chip("Entity", ep, "%") + " " +
+                chip("ROUGE-L", rl) + " " +
+                chip("BERTScore", bs) + " " +
+                chip("Quality", qs, "%")
             )
-            st.markdown(f'<div class="metric-row">{pills}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="chip-row">{chips}</div>', unsafe_allow_html=True)
 
-            # Output text
-            validated = post_res.get("validated_text", "")
+            validated = pr.get("validated_text", "")
             if validated:
-                st.markdown(
-                    f'<div class="step-output">{validated}</div>',
-                    unsafe_allow_html=True
-                )
+                st.markdown(f'<div class="output-box">{validated}</div>', unsafe_allow_html=True)
             else:
-                st.markdown(
-                    '<div class="step-output" style="color:#718096">No output generated.</div>',
-                    unsafe_allow_html=True
-                )
+                st.markdown('<div class="output-box" style="color:#aaa">No output.</div>', unsafe_allow_html=True)
 
-            # Entity status
-            with st.expander("🏷️ Entity Validation"):
-                found = post_res.get("entities_found", [])
-                missing = post_res.get("entities_missing", [])
+            with st.expander("Entity validation"):
+                found   = pr.get("entities_found", [])
+                missing = pr.get("entities_missing", [])
                 if found:
-                    st.markdown("**Found ✅**")
+                    st.caption("Found")
                     for e in found:
                         st.markdown(f"- `{e}`")
                 if missing:
-                    st.markdown("**Missing ❌**")
+                    st.caption("Missing")
                     for e in missing:
                         st.markdown(f"- `{e}`")
 
-    # ── TABEL PERBANDINGAN METRIK ──
+    # ── METRICS TABLE ─────────────────────────────────────────────────────────
     st.markdown("---")
-    st.markdown("### 📊 Tabel Perbandingan Metrik Lengkap")
+    st.markdown('<p class="section-label">Metrics Summary</p>', unsafe_allow_html=True)
 
     import pandas as pd
-
-    table_data = []
-    for model_key in model_keys:
-        llm_res = llm_results[model_key]
-        post_res = post_results[model_key]
-        eval_res = eval_results[model_key]
-
-        table_data.append({
-            "Model": MODEL_LABELS[model_key],
-            "Status": "✅" if llm_res["success"] else "❌",
-            "Steps": post_res.get("step_count", 0),
-            "Latency (s)": llm_res.get("elapsed_seconds", 0),
-            "Entity Pass (%)": post_res.get("entity_pass_rate", 0),
-            "ROUGE-1": round(eval_res.get("rouge", {}).get("rouge1_f", 0), 4),
-            "ROUGE-2": round(eval_res.get("rouge", {}).get("rouge2_f", 0), 4),
-            "ROUGE-L": round(eval_res.get("rouge", {}).get("rougeL_f", 0), 4),
-            "BERTScore P": round(eval_res.get("bertscore", {}).get("precision", 0), 4),
-            "BERTScore R": round(eval_res.get("bertscore", {}).get("recall", 0), 4),
-            "BERTScore F1": round(eval_res.get("bertscore", {}).get("f1", 0), 4),
-            "Quality Score (%)": post_res.get("quality_score", {}).get("total", 0),
+    rows = []
+    for mk in model_keys:
+        lr = llm_res[mk]
+        pr = post_res[mk]
+        er = eval_res[mk]
+        rows.append({
+            "Model":          model_label(mk),
+            "Status":         "OK" if lr["success"] else "Error",
+            "Steps":          pr.get("step_count", 0),
+            "Latency (s)":    lr.get("elapsed_seconds", 0),
+            "Entity (%)":     pr.get("entity_pass_rate", 0),
+            "ROUGE-1":        round(er.get("rouge", {}).get("rouge1_f", 0), 4),
+            "ROUGE-2":        round(er.get("rouge", {}).get("rouge2_f", 0), 4),
+            "ROUGE-L":        round(er.get("rouge", {}).get("rougeL_f", 0), 4),
+            "BERTScore P":    round(er.get("bertscore", {}).get("precision", 0), 4),
+            "BERTScore R":    round(er.get("bertscore", {}).get("recall", 0), 4),
+            "BERTScore F1":   round(er.get("bertscore", {}).get("f1", 0), 4),
+            "Quality (%)":    pr.get("quality_score", {}).get("total", 0),
         })
 
-    df = pd.DataFrame(table_data)
+    df = pd.DataFrame(rows)
     st.dataframe(
-        df,
-        use_container_width=True,
-        hide_index=True,
+        df, use_container_width=True, hide_index=True,
         column_config={
-            "Entity Pass (%)": st.column_config.ProgressColumn(
-                "Entity Pass (%)", min_value=0, max_value=100
-            ),
-            "Quality Score (%)": st.column_config.ProgressColumn(
-                "Quality Score (%)", min_value=0, max_value=100
-            ),
+            "Entity (%)":  st.column_config.ProgressColumn("Entity (%)",  min_value=0, max_value=100),
+            "Quality (%)": st.column_config.ProgressColumn("Quality (%)", min_value=0, max_value=100),
         }
     )
 
-    # ── INSIGHTS ──
+    # ── INSIGHTS ──────────────────────────────────────────────────────────────
     st.markdown("---")
-    st.markdown("### 💡 Insights Otomatis")
+    st.markdown('<p class="section-label">Insights</p>', unsafe_allow_html=True)
 
-    successful = [k for k in model_keys if llm_results[k]["success"]]
-    if successful:
-        insights = []
+    ok = [mk for mk in model_keys if llm_res[mk]["success"]]
+    if ok:
+        ep_s    = {mk: post_res[mk].get("entity_pass_rate", 0) for mk in ok}
+        rouge_s = {mk: eval_res[mk].get("rouge", {}).get("rougeL_f", 0) for mk in ok}
+        bert_s  = {mk: eval_res[mk].get("bertscore", {}).get("f1", 0) for mk in ok}
+        qual_s  = {mk: eval_res[mk].get("overall_quality", 0) for mk in ok}
 
-        # Entity preservation insight
-        ep_scores = {k: post_results[k].get("entity_pass_rate", 0) for k in successful}
-        best_ep = max(ep_scores, key=ep_scores.get)
-        insights.append(
-            f"**Entity Preservation:** {MODEL_LABELS[best_ep]} unggul dengan "
-            f"{ep_scores[best_ep]:.1f}% entity pass rate — "
-            f"{'sangat baik' if ep_scores[best_ep] >= 85 else 'perlu ditingkatkan'} "
-            f"(threshold penelitian ≥85%)."
-        )
+        best_ep    = max(ep_s, key=ep_s.get)
+        best_rouge = max(rouge_s, key=rouge_s.get)
+        best_bert  = max(bert_s, key=bert_s.get)
+        best_qual  = max(qual_s, key=qual_s.get)
 
-        # ROUGE insight
-        rouge_scores = {
-            k: eval_results[k].get("rouge", {}).get("rougeL_f", 0)
-            for k in successful
-        }
-        best_rouge = max(rouge_scores, key=rouge_scores.get)
-        insights.append(
-            f"**ROUGE-L:** {MODEL_LABELS[best_rouge]} menghasilkan skor tertinggi "
-            f"({rouge_scores[best_rouge]:.4f}) — menunjukkan preservasi konten leksikal terbaik."
-        )
+        threshold_note = "meets the ≥85% research threshold" if ep_s[best_ep] >= 85 else "below the ≥85% research threshold"
 
-        # BERTScore insight
-        bert_scores = {
-            k: eval_results[k].get("bertscore", {}).get("f1", 0)
-            for k in successful
-        }
-        best_bert = max(bert_scores, key=bert_scores.get)
-        insights.append(
-            f"**BERTScore F1:** {MODEL_LABELS[best_bert]} unggul "
-            f"({bert_scores[best_bert]:.4f}) — kesamaan semantik terbaik dengan artikel asli."
-        )
+        for text in [
+            f"<b>Entity Preservation:</b> {model_label(best_ep)} leads at {ep_s[best_ep]:.1f}% — {threshold_note}.",
+            f"<b>ROUGE-L:</b> {model_label(best_rouge)} achieves the highest lexical overlap ({rouge_s[best_rouge]:.4f}), indicating stronger content preservation.",
+            f"<b>BERTScore F1:</b> {model_label(best_bert)} scores highest on semantic similarity ({bert_s[best_bert]:.4f}).",
+            f"<b>Overall:</b> {model_label(best_qual)} performs best across combined metrics ({qual_s[best_qual]:.1f}%). Optimal model selection depends on which metric aligns with the research priority."
+        ]:
+            st.markdown(f'<div class="insight-row">{text}</div>', unsafe_allow_html=True)
 
-        # Recommendation
-        overall_scores = {k: eval_results[k].get("overall_quality", 0) for k in successful}
-        best_overall = max(overall_scores, key=overall_scores.get)
-        insights.append(
-            f"**Rekomendasi:** Berdasarkan kombinasi semua metrik, "
-            f"{MODEL_LABELS[best_overall]} memberikan performa terbaik secara keseluruhan. "
-            f"Namun pemilihan model optimal bergantung pada prioritas metrik penelitian."
-        )
-
-        for insight in insights:
-            st.info(insight)
-
-    # ── DOWNLOAD ──
+    # ── EXPORT ────────────────────────────────────────────────────────────────
     st.markdown("---")
-    st.markdown("### 💾 Export Hasil")
+    st.markdown('<p class="section-label">Export</p>', unsafe_allow_html=True)
 
-    dl_cols = st.columns(len(successful)) if successful else st.columns(1)
-
-    for i, model_key in enumerate(successful):
-        with dl_cols[i]:
-            validated = post_results[model_key].get("validated_text", "")
+    ecols = st.columns(len(ok) + 1) if ok else st.columns(1)
+    for i, mk in enumerate(ok):
+        with ecols[i]:
+            validated = post_res[mk].get("validated_text", "")
             if validated:
                 st.download_button(
-                    label=f"⬇️ Download {model_key.upper()} output",
+                    label=f"Download {mk.upper()} output (.txt)",
                     data=validated,
-                    file_name=f"procedural_{model_key}.txt",
+                    file_name=f"procedural_{mk}.txt",
                     mime="text/plain",
                     use_container_width=True
                 )
+    if ok:
+        with ecols[-1]:
+            st.download_button(
+                label="Download metrics (.csv)",
+                data=df.to_csv(index=False),
+                file_name="comparison_metrics.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
 
-    # Export tabel CSV
-    if table_data:
-        csv = df.to_csv(index=False)
-        st.download_button(
-            label="⬇️ Download Comparison Table (CSV)",
-            data=csv,
-            file_name="comparison_metrics.csv",
-            mime="text/csv"
-        )
-
-# ── EMPTY STATE ──
-elif not run_button:
-    st.markdown("---")
+# ── EMPTY STATE ───────────────────────────────────────────────────────────────
+elif not run_btn:
     st.markdown("""
-    <div style="text-align:center; padding: 3rem; color: #718096;">
-        <div style="font-size: 4rem; margin-bottom: 1rem;">📰 → 📋</div>
-        <h3 style="color:#a0aec0;">Siap untuk dijalankan</h3>
-        <p>Masukkan API key di sidebar, lalu klik <strong>Jalankan Pipeline</strong></p>
-        <p style="font-size:0.85rem; margin-top:1rem;">
-            Pipeline akan memproses artikel melalui 5 fase:<br>
-            Pre-processing → LLM Conversion (3 model) → Post-processing → Evaluasi
+    <div style="padding: 3rem 0; text-align: center; color: #bbb;">
+        <p style="font-family:'IBM Plex Mono',monospace; font-size:0.85rem; letter-spacing:0.05em;">
+            ADD API KEY · PASTE ARTICLE · RUN PIPELINE
         </p>
     </div>
     """, unsafe_allow_html=True)
